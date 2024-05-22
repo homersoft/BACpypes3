@@ -64,7 +64,7 @@ def read_json(app):
     global objects
 
     # Opening JSON file
-    f = open('samples/Silvair/data.json')
+    f = open('samples/Silvair/gen.json')
     # f = open('samples/Silvair/data.json')
     data = json.load(f)
     f.close()
