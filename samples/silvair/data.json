@@ -1,0 +1,40 @@
+{
+    "bacnet" : [
+        {
+            "name": "Building",
+            "type": "SV",
+            "nodetype": "other",
+            "description": "Building description",
+            "instance": 65536
+        },
+        {
+            "name": "Area",
+            "type": "SV",
+            "description": "Area description",
+            "nodetype": "other",
+            "instance": 65537,
+            "parent": "Building"
+        },        
+        {
+            "name": "Group 49158",
+            "type": "BI",
+            "description": "Group 49158 occupancy",
+            "instance": 49158,
+            "parent": "Area"
+        },
+        {
+            "name": "Group 49165",
+            "type": "BI",
+            "description": "Group 49165 occupancy",
+            "instance": 49165,
+            "parent": "Area"
+        },
+        {
+            "name": "ALS Group 49165",
+            "type": "AI",
+            "description": "ALS Group 49165",
+            "unit": "luxes",
+            "instance": 49165
+        }
+    ]
+}
