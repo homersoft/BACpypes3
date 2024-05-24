@@ -1,17 +1,6 @@
 {
-    "bacnet" : [
-        {
-            "name": "Group 49158",
-            "value": 1
-        },
-        {
-            "name": "Group 49165",
-            "value": 1
-        },
-        {
-            "name": "ALS Group 49165",
-            "value": 127
-
-        }
-    ]
+    "49342": {
+        "Value": true,
+        "OutOfService": false
+    }
 }

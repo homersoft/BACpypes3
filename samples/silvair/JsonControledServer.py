@@ -7,7 +7,7 @@ Sample BACnetIP application with a structure of the server defined from the JSON
 """
 
 import asyncio
-
+import requests
 import json
 
 from bacpypes3.debugging import ModuleLogger
@@ -23,6 +23,7 @@ from bacpypes3.object import StructuredViewObject as _StructuredViewObject
 from bacpypes3.local.device import DeviceObject as _DeviceObject
 from bacpypes3.local.networkport import NetworkPortObject as _NetworkPortObject
 from bacpypes3.local.cov import COVIncrementCriteria
+from bacpypes3.local.cov import GenericCriteria
 
 
 from bacpypes3.basetypes import Polarity
@@ -32,6 +33,9 @@ from bacpypes3.basetypes import NodeType
 from bacpypes3.constructeddata import ArrayOf
 from bacpypes3.vendor import VendorInfo
 
+BI_SHIFT = (3 << 22)
+AI_SHIFT = (0 << 22)
+SV_SHIFT = (29 << 22)
 
 # some debugging
 _debug = 0
@@ -48,14 +52,49 @@ class NetworkPortObject(_NetworkPortObject):
     pass
 
 class BinaryInputObject(_Object, _BinaryInputObject):
-    _cov_criteria = COVIncrementCriteria
+    _cov_criteria = GenericCriteria
 
-class LocalAnalogInputObject(_Object, _AnalogInputObject):
+class AnalogInputObject(_Object, _AnalogInputObject):
     _cov_criteria = COVIncrementCriteria
 
 
 # dictionary of names to objects
 objects = {}
+
+async def update_data(delay):
+    global objects
+
+    while True:
+        await asyncio.sleep(delay)
+        # ask the web service
+        try:
+            response = requests.get(
+                # "http://localhost:8000/samples/Silvair/new_data.json"
+                "http://127.0.0.1/bacnet?time=%d" % (delay + 10)
+            )
+
+        except Exception as inst:
+            print("Connection error: %r" % (type(inst),))
+            continue
+
+        if response.status_code != 200:
+            print("Error response: %r" % (response.status_code,))
+            continue
+
+        # turn the response string into a JSON object
+        json_response = response.json()
+
+        for key in json_response:
+            # print(key)
+            instance = int(key) + BI_SHIFT # TODO fixed as of today
+            entry = json_response[key]
+            if instance in objects:
+                # print(objects[entry["name"]].presentValue)
+                if objects[instance].presentValue != entry["Value"]:
+                    print("change Group %s -> %r %r"%(key,entry["Value"], entry["OutOfService"]))
+                    objects[instance].presentValue=entry["Value"]
+                    objects[instance].outOfService=entry["OutOfService"]
+
 
 def read_json(app):
     #     """Create the objects that hold the result values."""
@@ -78,11 +117,14 @@ def read_json(app):
 
         match entry["type"]:
             case "BI":
-                typeObj = _BinaryInputObject
+                typeObj = BinaryInputObject
+                shift = BI_SHIFT
             case "AI":
-                typeObj = _AnalogInputObject
+                typeObj = AnalogInputObject
+                shift = AI_SHIFT
             case "SV":
                 typeObj = _StructuredViewObject
+                shift = SV_SHIFT
 
         # create an object
         obj = typeObj(
@@ -95,22 +137,24 @@ def read_json(app):
             obj.description= entry["description"]
 
         if "parent" in entry:
-            objects[entry["parent"]].subordinateList.append(DeviceObjectReference(objectIdentifier = obj.objectIdentifier))
+            # parent is SV
+            objects[entry["parent"]+SV_SHIFT].subordinateList.append(DeviceObjectReference(objectIdentifier = obj.objectIdentifier))
 
 
         if entry["type"] == "AI":
             obj.statusFlags=[0, 0, 0, 0]
             obj.outOfService=False
             obj.eventState=EventState('normal')
+            obj.presentValue=0
             # mandatory for COV
             obj.covIncrement=1.0
-            obj.presentValue=0.0
             # set the units, mandatory
             obj.units = entry["unit"]
 
         if entry["type"] == "BI":
             obj.statusFlags=[0, 0, 0, 0]
             obj.outOfService=False
+            obj.presentValue=False
             obj.polarity=Polarity('normal')
             obj.eventState=EventState('normal')
         
@@ -125,10 +169,12 @@ def read_json(app):
             read_json._debug("    - obj: %r", obj)
 
         # keep track of the object by name
-        objects[entry["name"]] = obj
+        objects[entry["instance"] + shift] = obj
 
 
 async def main() -> None:
+    
+    asyncio.create_task(update_data(5))
     try:
         app = None
         parser = SimpleArgumentParser()
